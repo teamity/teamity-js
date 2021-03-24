@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<head>
+  <title>teamity-client</title>
+  <script src="./dist/teamity.min.js">
+  </script>
+
+</head>
+<body >
+  <script >
+    window.onload=function(){ 
+
+const c1 = Teamity('ws://127.0.0.1:4888/teamity?q=123')
+c1.open()
+
+c1.on('connect', function () {
+  console.log('c1 open')
+  c1.request('/teamity/789456', { a: 'ddddddd', b: 'ccccccc' }).then(result => {
+    console.log({
+      result
+    })
+  })
+})
+
+c1.on('disconnect', function (code) {
+  console.log('c1 close:')
+  console.log(code.code)
+})
+
+    } 
+
+  </script>
+</body>
