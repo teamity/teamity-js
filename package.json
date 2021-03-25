@@ -1,6 +1,6 @@
 {
   "name": "teamity-js",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "browser": "./dist/teamity.min.js",
   "main": "index.js",
   "typings": "index.d.ts",
@@ -40,5 +40,7 @@
     "webpack-remove-debug": "^0.1.0"
   },
   "pre-commit": ["lint"],
-  "dependencies": {}
+  "dependencies": {
+    "EventEmitter": "^1.0.0"
+  }
 }

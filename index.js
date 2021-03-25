@@ -1,6 +1,8 @@
-const Webskt = window.WebSocket
 const { kTeamityRaw, kTeamityUrl } = require('./symbols')
-const { EventEmitter } = require('events')
+const { default: EventEmitter } = require('EventEmitter')
+
+const WebSkt = window.WebSocket
+const pkgSplit = '\n'
 
 class Teamity extends EventEmitter {
   constructor (url) {
@@ -18,18 +20,18 @@ class Teamity extends EventEmitter {
 
   // properties
   get $connected () {
-    return this.$raw && this.$raw.readyState === Webskt.OPEN
+    return this.$raw && this.$raw.readyState === WebSkt.OPEN
   }
 
   get $disconnected () {
-    return this.$raw && this.$raw.readyState === Webskt.CLOSED
+    return this.$raw && this.$raw.readyState === WebSkt.CLOSED
   }
 
   // methods
   open () {
     if (this.$connected) return
 
-    this[kTeamityRaw] = new Webskt(this.$url)
+    this[kTeamityRaw] = new WebSkt(this.$url)
     this.$raw.onopen = super.emit.bind(this, 'connect')
     this.$raw.onerror = super.emit.bind(this, 'error')
     this.$raw.onclose = super.emit.bind(this, 'disconnect')
@@ -54,15 +56,16 @@ class Teamity extends EventEmitter {
       body = encode.encode(body)
     }
 
-    const pkgLen = 1 + event.byteLength + 2 + body.byteLength
+    const split = encode.encode(pkgSplit)
+    const pkgLen = event.byteLength + split.byteLength + body.byteLength
     const pkg = new Uint8Array(pkgLen)
-    pkg.set([event.byteLength], 0)
-    pkg.set(event, 1)
-    pkg.set(
-      [(body.byteLength >> 8) & 0xff, (body.byteLength >> 0) & 0xff],
-      1 + event.byteLength
-    )
-    pkg.set(body, 1 + event.byteLength + 2)
+
+    let offset = 0
+    pkg.set(event, offset)
+    offset += event.byteLength
+    pkg.set(split, offset)
+    offset += split.byteLength
+    pkg.set(body, offset)
 
     this.$raw.send(pkg)
   }
@@ -97,7 +100,7 @@ function _toUint8Array (data) {
         resolve(new Uint8Array(buffer))
       })
     } else {
-      resolve(Uint8Array.from(data))
+      reject(new Error('data format error'))
     }
   })
 }
@@ -107,28 +110,18 @@ function _onMessage (msg) {
     const { data } = msg
     const decode = new TextDecoder()
     _toUint8Array(data).then(payload => {
-      const { byteLength } = payload
-      if (byteLength < 1) return
+      const pkgIdx = payload.findIndex(v => {
+        return String.fromCharCode(v) === pkgSplit
+      })
 
-      let buf = payload.slice(0, 1)
-      const tLen = buf[0]
+      if (pkgIdx < 0) {
+        return
+      }
 
-      if (byteLength < 1 + tLen) return
+      const topic = payload.slice(0, pkgIdx)
+      const body = payload.slice(pkgIdx + pkgSplit.length)
 
-      buf = payload.slice(1, 1 + tLen)
-      const topic = decode.decode(buf)
-
-      if (byteLength < 1 + tLen + 2) return
-
-      buf = payload.slice(1 + tLen, 1 + tLen + 2)
-      const pLen = (buf[0] << 8) | (buf[1] << 0)
-
-      if (byteLength < 1 + tLen + 2 + pLen) return
-
-      buf = payload.slice(1 + tLen + 2, 1 + tLen + 2 + pLen)
-      const body = JSON.parse(decode.decode(buf))
-
-      this.superEmit(topic, body)
+      this.superEmit(decode.decode(topic), JSON.parse(decode.decode(body)))
     })
   } catch (e) {}
 }
